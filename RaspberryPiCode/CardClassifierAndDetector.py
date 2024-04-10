@@ -1,8 +1,17 @@
 import cv2
 import os
+import time
 import numpy as np
 
-# Initialize
+from smbus import SMBus
+
+# Initialize I2C
+addr = 0x55         # bus address
+bus = SMBus(1)      # indicates /dev/ic2-1
+
+time.sleep(1)
+
+# Initialize openCV
 path = 'ImagesQuery'
 images = []
 cardNames = []
@@ -56,6 +65,8 @@ while True:
     id = findID(img2, desList, 14)
     if id != -1:
         cv2.putText(imgOriginal, cardNames[id], (50,50), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
+        for char in cardNames[id]:
+            bus.write_byte(addr, ord(char))
 
     cv2.imshow('frame', imgOriginal)
     cv2.waitKey(1)
