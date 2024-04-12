@@ -5,6 +5,35 @@ import numpy as np
 
 from smbus import SMBus
 
+# Initialize Dictionary
+#color_ranges = {
+#    'red'   = [],
+#    'orange'= [],
+#    'yellow'= [],
+#    'green' = [93, 103],
+#    'blue'  = [],
+#    'indigo'= [],
+#    'violet'= [],
+#    'purple'= [],
+#    'brown' = [],
+#    'white' = [54,],
+#    'black' = []
+#}
+
+type_ranges = {
+#    'colorless' : [[33,9,71],[0,0,100]],
+    'fire'      : [[8,53,100],[0,54,68]],
+    'water'     : [[198,72,98],[201,79,43]],
+    'lightning' : [[44,55,100],[37,75,95]],
+    'grass'     : [[109,52,66],[147,86,68]],
+    'fighting'  : [[17,70,92],[22,55,56]],
+    'psychic'   : [[276,18,84],[292,48,51]],
+    'metal'     : [[200,1,80],[210,6,56]],
+    'darkness'  : [[188,75,56],[197,24,71]],
+    'dragon'    : [[45,69,52],[50,25,83]],
+#    'fairy'     : [[335,45,97],[328,55,73]]
+}
+
 # Initialize I2C
 addr = 0x55         # bus address
 bus = SMBus(1)      # indicates /dev/ic2-1
@@ -15,13 +44,16 @@ time.sleep(1)
 path = 'ImagesQuery'
 images = []
 cardNames = []
+orig_images = []
 myList = os.listdir(path)
 orb = cv2.ORB_create(nfeatures=1000)
 
 # Import images
 for card in myList:
-    curImg = cv2.imread(f'{path}/{card}', 0)
+    curImg = cv2.imread(f'{path}/{card}', 0) # '0' means grayscale
     images.append(curImg)
+    origImg = cv2.imread(f'{path}/{card}', -1)
+    orig_images.append(origImg)
     cardNames.append(os.path.splitext(card)[0])
 
 # Function to get descriptors
@@ -53,6 +85,30 @@ def findID(img, desList, thresh):
             finalIdx = matchList.index(max(matchList))
     return finalIdx
 
+def findPromColor(id):
+    Cur_img = orig_images[id]
+    hsv_img = cv2.cvtColor(Cur_img, cv2.COLOR_BGR2HSV)
+    x, y = 680,80
+    h, s, v = hsv_img[y,x]
+    
+    # openCV uses different ranges, so convert to "normal" values
+    h_norm = int(h * 360/179)
+    s_norm = int(s * 100/255)
+    v_norm = int(v * 100/255)
+    
+    # Iterate through type dictionary
+    for key in type_ranges:
+        type_HSV0 = type_ranges[key][0]
+        type_HSV1 = type_ranges[key][1]
+        
+        lowerH = min(type_HSV0[0], type_HSV1[0])
+        upperH = max(type_HSV0[0], type_HSV1[0])
+        
+        if 0 <= s_norm <= 10:
+            return "normal"
+        if lowerH <= h_norm <= upperH:
+            return key
+
 desList = findDes(images)
 
 # Get camera feed and process
@@ -65,11 +121,13 @@ while True:
     id = findID(img2, desList, 14)
     if id != -1:
         cv2.putText(imgOriginal, cardNames[id], (50,50), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
-        for char in cardNames[id]:
-            bus.write_byte(addr, ord(char))
-
+        type = findPromColor(id)
+        cv2.putText(imgOriginal, type, (50,70), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
+        #for char in cardNames[id]:
+            #bus.write_byte(addr, ord(char))
+    
     cv2.imshow('frame', imgOriginal)
-    cv2.waitKey(1)
+    cv2.waitKey(3)
 
 cap.release()
 cv2.destroyAllWindows()
