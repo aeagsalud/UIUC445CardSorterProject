@@ -6,19 +6,19 @@ import numpy as np
 from smbus import SMBus
 
 # Initialize Dictionary
-#color_ranges = {
-#    'red'   = [],
+color_ranges = {
+    'red'       : [[0,30],[340,359]],
 #    'orange'= [],
 #    'yellow'= [],
-#    'green' = [93, 103],
-#    'blue'  = [],
+    'green'     : [90, 180],
+    'blue'      : [180,240]
 #    'indigo'= [],
 #    'violet'= [],
 #    'purple'= [],
 #    'brown' = [],
 #    'white' = [54,],
 #    'black' = []
-#}
+}
 
 type_ranges = {
 #    'colorless' : [[33,9,71],[0,0,100]],
@@ -85,7 +85,7 @@ def findID(img, desList, thresh):
             finalIdx = matchList.index(max(matchList))
     return finalIdx
 
-def findPromColor(id):
+def findTypeColor(id):
     Cur_img = orig_images[id]
     hsv_img = cv2.cvtColor(Cur_img, cv2.COLOR_BGR2HSV)
     x, y = 680,80
@@ -109,6 +109,33 @@ def findPromColor(id):
         if lowerH <= h_norm <= upperH:
             return key
 
+def findPromColor(id):
+    Cur_img = orig_images[id]
+    hsv_img = cv2.cvtColor(Cur_img, cv2.COLOR_BGR2HSV)
+    x, y = 680,80
+    h, s, v = hsv_img[y,x]
+    
+    # openCV uses different ranges, so convert to "normal" values
+    h_norm = int(h * 360/179)
+    s_norm = int(s * 100/255)
+    v_norm = int(v * 100/255)
+    
+    # Check for saturation
+    if 0 <= s_norm <= 10:
+        return 'other'
+    
+    # Check each color with hue
+    if 0 <= h_norm <= 30:
+        return 'red'
+    if 340 <= h_norm <= 359:
+        return 'red'
+    if 90 <= h_norm <= 180:
+        return 'green'
+    if 180 <= h_norm <= 240:
+        return 'blue'
+    else:
+        return 'other'
+
 desList = findDes(images)
 
 # Get camera feed and process
@@ -121,10 +148,13 @@ while True:
     id = findID(img2, desList, 14)
     if id != -1:
         cv2.putText(imgOriginal, cardNames[id], (50,50), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
-        type = findPromColor(id)
-        cv2.putText(imgOriginal, type, (50,70), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
+        cardType = findTypeColor(id)
+        cardColor = findPromColor(id)
+        cv2.putText(imgOriginal, cardType, (50,70), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
+        cv2.putText(imgOriginal, cardColor, (50,90), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
         #for char in cardNames[id]:
             #bus.write_byte(addr, ord(char))
+        bus.write_byte(addr, ord(cardColor[0]))
     
     cv2.imshow('frame', imgOriginal)
     cv2.waitKey(3)
