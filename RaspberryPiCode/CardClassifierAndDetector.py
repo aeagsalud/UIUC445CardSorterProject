@@ -10,7 +10,7 @@ color_ranges = {
     'red'       : [[0,30],[340,359]],
 #    'orange'= [],
 #    'yellow'= [],
-    'green'     : [90, 180],
+    'green'     : [60, 120],
     'blue'      : [180,240]
 #    'indigo'= [],
 #    'violet'= [],
@@ -46,7 +46,7 @@ images = []
 cardNames = []
 orig_images = []
 myList = os.listdir(path)
-orb = cv2.ORB_create(nfeatures=1000)
+orb = cv2.ORB_create(nfeatures=300)
 
 # Import images
 for card in myList:
@@ -109,16 +109,28 @@ def findTypeColor(id):
         if lowerH <= h_norm <= upperH:
             return key
 
-def findPromColor(id):
-    Cur_img = orig_images[id]
-    hsv_img = cv2.cvtColor(Cur_img, cv2.COLOR_BGR2HSV)
-    x, y = 680,80
-    h, s, v = hsv_img[y,x]
+def findPromColor(img):
+    Cur_img = img
+    
+    roi_x, roi_y, roi_w, roi_h = 250, 350, 200, 200
+    roi = Cur_img[roi_y:roi_y+roi_h, roi_x:roi_x+roi_w]
+    
+    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    
+    hue_channel = hsv_roi[:,:,0]
+    sat_channel = hsv_roi[:,:,1]
+    val_channel = hsv_roi[:,:,2]
+    
+    avg_hue = np.mean(hue_channel)
+    avg_sat = np.mean(sat_channel)
+    avg_val = np.mean(val_channel)
     
     # openCV uses different ranges, so convert to "normal" values
-    h_norm = int(h * 360/179)
-    s_norm = int(s * 100/255)
-    v_norm = int(v * 100/255)
+    h_norm = int(avg_hue * 360/179)
+    s_norm = int(avg_sat * 100/255)
+    v_norm = int(avg_val * 100/255)
+    
+    print(h_norm)
     
     # Check for saturation
     if 0 <= s_norm <= 10:
@@ -127,12 +139,14 @@ def findPromColor(id):
     # Check each color with hue
     if 0 <= h_norm <= 30:
         return 'red'
-    if 340 <= h_norm <= 359:
+    if 330 <= h_norm <= 359:
         return 'red'
-    if 90 <= h_norm <= 180:
+    if 60 <= h_norm <= 120:
         return 'green'
-    if 180 <= h_norm <= 240:
+    if 190 <= h_norm <= 230:
         return 'blue'
+    if 45 <= h_norm <= 59:
+        return 'yellow'
     else:
         return 'other'
 
@@ -140,24 +154,23 @@ desList = findDes(images)
 
 # Get camera feed and process
 cap = cv2.VideoCapture(-1)
+
+ready_state = 0
 while True:
     ret, img2 = cap.read()
     imgOriginal = img2.copy()
-    img2 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)        # Converts image to grayscale
+    imgOriginal = cv2.rotate(imgOriginal, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
-    id = findID(img2, desList, 14)
-    if id != -1:
-        cv2.putText(imgOriginal, cardNames[id], (50,50), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
-        cardType = findTypeColor(id)
-        cardColor = findPromColor(id)
-        cv2.putText(imgOriginal, cardType, (50,70), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
-        cv2.putText(imgOriginal, cardColor, (50,90), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
-        #for char in cardNames[id]:
-            #bus.write_byte(addr, ord(char))
-        bus.write_byte(addr, ord(cardColor[0]))
+    cardColor = findPromColor(imgOriginal)
+    bus.write_byte(addr, ord(cardColor[0]))
+    
+    cv2.putText(imgOriginal, cardColor, (50,50), cv2.FONT_HERSHEY_COMPLEX, 1, (0,0,255), 2)
+    cv2.circle(imgOriginal, (250,350), 3, (0, 0, 255), -1)
     
     cv2.imshow('frame', imgOriginal)
     cv2.waitKey(3)
+    
+    ready_state = 0
 
 cap.release()
 cv2.destroyAllWindows()
